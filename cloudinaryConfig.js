@@ -1,5 +1,3 @@
-import multer from 'multer'
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { v2 as cloudinary } from 'cloudinary';
 import dotenv from 'dotenv'
 dotenv.config();
@@ -10,23 +8,18 @@ cloudinary.config({
     api_secret: process.env.CLOUD_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary
-});
-
-export const uploader = multer({
-    storage: storage,
-    limits: {
-        fileSize: 1024 * 1024 * 2,
-    }
-});
-
-export const deleteImageCloudinary = async (publicId) => {
+export const uploadBuffer = async (buffer, folder = "uploads") => {
     try {
-        const response = await cloudinary.uploader.destroy(publicId);
-        console.log("cloudinary response", response);
-    } catch (error) {
-        console.log('unable to delete image', error);
-        throw error
+        return await new Promise((resolve, reject) => {
+            cloudinary.uploader
+                .upload_stream({ folder }, (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                })
+                .end(buffer);
+        });
+    } catch (err) {
+        console.error("❌ Cloudinary Upload Error:", err.message);
+        throw err;
     }
 };
