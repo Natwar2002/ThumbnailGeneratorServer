@@ -8,18 +8,12 @@ cloudinary.config({
     api_secret: process.env.CLOUD_API_SECRET,
 });
 
-export const uploadBuffer = async (buffer, folder = "uploads") => {
+export const uploadFile = async (filePath, folder = "uploads") => {
     try {
-        return await new Promise((resolve, reject) => {
-            cloudinary.uploader
-                .upload_stream({ folder }, (error, result) => {
-                    if (error) return reject(error);
-                    resolve(result);
-                })
-                .end(buffer);
-        });
+        const result = await cloudinary.uploader.upload(filePath, { folder });
+        return result;
     } catch (err) {
-        console.error("❌ Cloudinary Upload Error:", err.message);
+        console.error("❌ Cloudinary File Upload Error:", err.message);
         throw err;
     }
 };

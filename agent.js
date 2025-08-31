@@ -21,6 +21,8 @@ export async function main(input, imagePath) {
         apiKey: process.env.GEMINI_API_KEY,
     });
 
+    console.log(input, imagePath);
+
     // Read input image
     let buffer, base64Image, mimeType;
     try {
@@ -31,6 +33,7 @@ export async function main(input, imagePath) {
         console.error("❌ Failed to read input image:", err);
         return [];
     }
+
 
     const config = { responseModalities: ["IMAGE", "TEXT"] };
     const model = "gemini-2.5-flash-image-preview";

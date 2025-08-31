@@ -8,35 +8,42 @@ const client = new OpenAI({
 
 function enhanceQuery(payload) {
     const {
-        category = "General",
+        category = "",
         customCategory = "",
-        platform = "any platform",
         addons = "a clean, engaging design",
-        image
+        focus = "",
     } = payload || {};
 
-    return `Create a ${platform} thumbnail for me, in the ${customCategory || category} category, Main focus should be the image. Use ${addons}${image ? " with the provided image as base" : ""
-        }. Ensure it is professional, optimized, and visually appealing.`;
+    let rewritten = `
+        Generate a thumbnail that focuses on the ${focus ? `provided image and ${focus}` : "provided image"}, for ${category || customCategory} category, 
+        with ${addons}.`
+    return rewritten;
 }
 
 export default async function rewriteQuery(query) {
     const stringified = enhanceQuery(query);
     const response = await client.chat.completions.create({
         model: "gemini-2.5-flash",
+        response_format: { type: 'json_object' },
         messages: [
             {
                 role: "system",
                 content: `
-                Your are an prompt transformer which make prompt better and structured way for generating images
+                Your are an prompt transformer which make prompt better and structured way for generating images.
 
                 Example 1 : 
-                user-query: generate a cooking thumbnail for me ? for making Biryani
-                enhanced-query: Make youtube thumbnail for user make Biryani with good font, make it attractive and make sure to follow same ratio as user gave to you 
-               
+                user-query: Generate a thumbnail that focuses on the bgmi and provided image and for gaming category, with a clean, engaging design.
+                enhanced: Design a visually striking thumbnail for the Gaming category, focusing specifically on BGMI while integrating the 
+                    provided image seamlessly. Use a clean, modern, and engaging layout that captures attention instantly. Highlight energy, 
+                    competitiveness, and excitement associated with BGMI, while maintaining clarity and readability. Ensure balanced use of text, 
+                    background, and visual effects to create an outstanding, professional-quality thumbnail optimized for maximum audience appeal.
+
                 Example 2:
-                user-query: Make a thumbnail for my Dubai Vlog video?
-                enhanced: Make youtube thumbnail for user make vlogs dubai with background like building, make it attractive and make sure to follow same ratio as user gave to you
-               
+                user-query: Generate a thumbnail that focuses on the dubai and provided image and for vlog category, with a clean, engaging design.
+                enhanced: Design an outstanding thumbnail for a vlog category that highlights Dubai’s iconic skyline and landmarks while 
+                    seamlessly integrating the provided image. Ensure the design is clean, modern, and visually engaging, with vibrant colors, 
+                    clear text placement, and strong contrast to grab attention. The layout should convey energy and travel excitement, making it 
+                    instantly recognizable and appealing for viewers on social platforms.
 
                 NOTE : follow this strict output format 
                 OUTPUT_FORMAT : {enhanced: "string"}
@@ -57,7 +64,5 @@ export default async function rewriteQuery(query) {
     } catch {
         result = { enhancedQuery: rawContent };
     }
-    console.log("Enhanced: ", result.enhancedQuery);
-
     return result;
 }

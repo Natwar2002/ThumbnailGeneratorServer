@@ -6,7 +6,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { convertTo16by9, convertTo1by1, convertTo9by16 } from './helpers.js';
-import { uploadBuffer } from './cloudinaryConfig.js';
+import { uploadFile } from './cloudinaryConfig.js';
+import cleanupFiles from './cleanup.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -30,93 +31,82 @@ app.post('/generateThumbnail', upload.single("image"), async (req, res) => {
             message: "Category and focus is required"
         });
     }
-    if (!req.file) {
-        return res.status(404).json({
-            success: false,
-            message: "Image not found"
-        });
-    }
     let filePath;
+    let convertedPath;
+    let imagePath;
+
     try {
+        // Ensure tmp_uploads dir exists
         const tempDir = path.join(process.cwd(), "tmp_uploads");
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
-        filePath = path.join(tempDir, req.file.originalname);
+        // Save uploaded file temporarily
+        filePath = path.join(tempDir, `${Date.now()}_${req.file.originalname}`);
         fs.writeFileSync(filePath, req.file.buffer);
 
         const buffer = req.file.buffer;
-
-        // Save converted image to /public/temp
         const timestamp = Date.now();
-        let convertedPath = "";
 
-        // Crop image into ratios
-        if (req.body.platform === 'youtube') {
+        // Convert image to correct ratio
+        if (req.body.platform === "youtube") {
             convertedPath = `./public/temp/output_${timestamp}_16by9.png`;
             await convertTo16by9(buffer, convertedPath);
-        } else if (req.body.platform === 'x' || req.body.platform === 'insta-post') {
+        } else if (req.body.platform === "x" || req.body.platform === "insta-post") {
             convertedPath = `./public/temp/output_${timestamp}_1by1.png`;
             await convertTo1by1(buffer, convertedPath);
-        } else if (req.body.platform === 'insta-reel') {
+        } else if (req.body.platform === "insta-reel") {
             convertedPath = `./public/temp/output_${timestamp}_9by16.png`;
             await convertTo9by16(buffer, convertedPath);
         } else {
-            return res.status(404).json({
+            return res.status(400).json({
                 success: false,
-                message: 'Ratio not found'
+                message: "Unsupported platform ratio",
             });
         }
 
-        console.log('Converted Path: ', convertedPath);
-
+        // Rewrite query + call AI pipeline
         const rewritten = await rewriteQuery(req.body);
         await main(rewritten, convertedPath);
 
+        console.log("Done..");
+
         // Take the first image from public/generate
         const generateDir = path.join(process.cwd(), "public", "generate");
-        const files = fs.readdirSync(generateDir).filter(f => /\.(png|jpe?g|webp)$/i.test(f));
+        const files = fs
+            .readdirSync(generateDir)
+            .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
 
         if (!files.length) {
             throw new Error("No images found in public/generate");
         }
 
-        // Pick the first generated image
-        const imagePath = path.join(generateDir, files[0]);
-        const imageBuffer = fs.readFileSync(imagePath);
+        imagePath = path.join(generateDir, files[0]);
 
-        // Upload the image to Cloudinary
-        const uploadResult = await uploadBuffer(imageBuffer, "thumbnails");
+        // Upload to Cloudinary
+        const uploadResult = await uploadFile(imagePath, "thumbnails");
 
-        // Cleanup local files
-        try {
-            if (fs.existsSync(convertedPath)) fs.unlinkSync(convertedPath);
-            if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
-        } catch (err) {
-            console.warn("⚠ Cleanup failed:", err.message);
-        }
+        // ✅ Cleanup temp files
+        cleanupFiles([filePath, convertedPath, imagePath]);
 
-        // Return Cloudinary URL
-        return new Response(
-            JSON.stringify({
-                url: uploadResult.secure_url,
+        // Return response
+        return res.status(201).json({
+            success: true,
+            message: "Successfully generated the thumbnail",
+            data: {
                 public_id: uploadResult.public_id,
-            }),
-            { status: 200 }
-        );
-
+                url: uploadResult.url,
+            },
+        });
     } catch (error) {
-        console.log("Error in generateThumbnail", error);
-        if (error.message || error.status) {
-            res.status(error?.status || 500).json({
-                success: false,
-                message: error?.message
-            });
-        } else {
-            res.status(500).json({
-                success: false,
-                message: 'Internal Server Error'
-            });
-        }
+        console.error("Error in generateThumbnail:", error);
+
+        // Cleanup even on failure
+        cleanupFiles([filePath, convertedPath, imagePath]);
+
+        return res.status(error?.status || 500).json({
+            success: false,
+            message: error?.message || "Internal Server Error",
+        });
     }
 });
 
