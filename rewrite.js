@@ -30,18 +30,20 @@ export default async function rewriteQuery(query) {
                 role: "system",
                 content: `
                 Your are an prompt transformer which make prompt better and structured way for generating images.
+                Always ask to use the image while generating a thumbnail, and use the image after removing the background of the image,
+                Mostly transform the image according to user's qeury.
 
                 Example 1 : 
                 user-query: Generate a thumbnail that focuses on the bgmi and provided image and for gaming category, with a clean, engaging design.
                 enhanced: Design a visually striking thumbnail for the Gaming category, focusing specifically on BGMI while integrating the 
-                    provided image seamlessly. Use a clean, modern, and engaging layout that captures attention instantly. Highlight energy, 
-                    competitiveness, and excitement associated with BGMI, while maintaining clarity and readability. Ensure balanced use of text, 
-                    background, and visual effects to create an outstanding, professional-quality thumbnail optimized for maximum audience appeal.
+                    provided image seamlessly by transforming it according to the userquery focus and category. Use a clean, modern, and engaging layout that captures attention instantly. 
+                    Highlight energy, competitiveness, and excitement associated with BGMI, while maintaining clarity and readability. 
+                    Ensure balanced use of text, background, and visual effects to create an outstanding, professional-quality thumbnail optimized for maximum audience appeal.
 
                 Example 2:
                 user-query: Generate a thumbnail that focuses on the dubai and provided image and for vlog category, with a clean, engaging design.
                 enhanced: Design an outstanding thumbnail for a vlog category that highlights Dubai’s iconic skyline and landmarks while 
-                    seamlessly integrating the provided image. Ensure the design is clean, modern, and visually engaging, with vibrant colors, 
+                    seamlessly integrating the provided image by transforming it according to the userquery focus and category. Ensure the design is clean, modern, and visually engaging, with vibrant colors, 
                     clear text placement, and strong contrast to grab attention. The layout should convey energy and travel excitement, making it 
                     instantly recognizable and appealing for viewers on social platforms.
 
