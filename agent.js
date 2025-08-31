@@ -1,93 +1,128 @@
 import { GoogleGenAI } from "@google/genai";
 import mime from "mime";
-import fs from "fs";
-import path from "path";
-import 'dotenv/config';
 
-// ✅ Safe binary writer
-function saveBinaryFile(fileName, content) {
-    fs.writeFile(fileName, content, (err) => {
-        if (err) {
-            console.error(`❌ Error writing file ${fileName}:`, err);
-            return;
-        }
-        console.log(`✅ File saved: ${fileName}`);
-    });
-}
-
-export async function main(input, imagePath) {
-
-    const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-    });
-
-    console.log(input, imagePath);
-
-    // Read input image
-    let buffer, base64Image, mimeType;
+export async function main(input, imageUrl) {
     try {
-        buffer = fs.readFileSync(imagePath);
-        base64Image = buffer.toString("base64");
-        mimeType = mime.getType(imagePath) || "image/png";
-    } catch (err) {
-        console.error("❌ Failed to read input image:", err);
-        return [];
-    }
+        console.log("Image: ", imageUrl);
 
+        console.log("🎯 Main function called with:", {
+            promptLength: input?.length,
+            imageUrl: imageUrl?.substring(0, 50) + "..."
+        });
 
-    const config = { responseModalities: ["IMAGE", "TEXT"] };
-    const model = "gemini-2.5-flash-image-preview";
+        const ai = new GoogleGenAI({ apiKey: process.env.NEXT_GEMINI_API_KEY });
 
-    const contents = [
-        {
-            role: "user",
-            parts: [
-                { text: input?.enhanced || "Generate an image" },
-                {
-                    inlineData: {
-                        mimeType,
-                        data: base64Image,
+        // Validate inputs
+        if (!input || typeof input.enhanced !== 'string') {
+            throw new Error("Invalid prompt provided");
+        }
+
+        if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+            throw new Error("Invalid image URL provided");
+        }
+
+        // Fetch image from Cloudinary URL
+        console.log("📥 Fetching image from Cloudinary...");
+        const res = await fetch(imageUrl);
+        if (!res.ok) {
+            throw new Error(`Failed to fetch image from URL: ${res.status} ${res.statusText}`);
+        }
+
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const mimeType = mime.getType(imageUrl) || "image/png";
+
+        console.log("✅ Image fetched:", {
+            size: buffer.length,
+            mimeType: mimeType
+        });
+
+        // FIXED: Correct content structure for Gemini API
+        const contents = [
+            {
+                role: "user",
+                parts: [
+                    {
+                        text: input.enhanced
                     },
-                },
-            ],
-        },
-    ];
+                    {
+                        inlineData: {
+                            mimeType: mimeType,
+                            data: buffer.toString("base64")
+                        }
+                    }
+                ]
+            }
+        ];
 
-    const response = await ai.models.generateContentStream({
-        model,
-        config,
-        contents,
-    });
+        // FIXED: Use the correct API call structure
+        const config = {
+            responseModalities: ["IMAGE", "TEXT"]
+        };
 
-    const outputFiles = [];
-    let fileIndex = 0;
+        const model = "gemini-2.5-flash-image-preview";
 
-    for await (const chunk of response) {
-        const parts = chunk?.candidates?.[0]?.content?.parts;
-        if (!parts?.length) continue;
+        console.log("🚀 Calling Gemini API...");
 
-        const part = parts[0];
+        // Use generateContent instead of generateContentStream for simpler handling
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: contents,
+            generationConfig: config
+        });
 
-        // ✅ Handle IMAGE output
-        if (part.inlineData?.data) {
-            const fileExtension = mime.getExtension(part.inlineData.mimeType || "png");
-            const fileName = `output_${Date.now()}_${fileIndex++}.${fileExtension}`;
-            const filePath = path.join(process.cwd(), "public", "generate", fileName);
+        console.log(response);
 
-            fs.mkdirSync(path.dirname(filePath), { recursive: true });
-
-            const buffer = Buffer.from(part.inlineData.data, "base64");
-            saveBinaryFile(filePath, buffer);
-
-            outputFiles.push(filePath);
+        if (!response) {
+            throw new Error("No response from Gemini API");
         }
 
-        // ✅ Handle TEXT output
-        if (chunk.text) {
-            console.log("📝 Text Output:", chunk.text);
+        const result = response;
+
+        // Check if we have candidates
+        if (!result.candidates || result.candidates.length === 0) {
+            throw new Error("No candidates in Gemini response");
         }
+
+        const candidate = result.candidates[0];
+        if (!candidate.content || !candidate.content.parts) {
+            throw new Error("No content parts in Gemini response");
+        }
+
+        // Process response parts
+        const outputBuffers = [];
+        let hasImageOutput = false;
+
+        for (const part of candidate.content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+                // Image data found
+                const imageBuffer = Buffer.from(part.inlineData.data, "base64");
+                outputBuffers.push(imageBuffer);
+                hasImageOutput = true;
+                console.log("📷 Found image output:", imageBuffer.length, "bytes");
+            } else if (part.text) {
+                // Text output
+                console.log("📝 Text Output:", part.text);
+            }
+        }
+
+        if (!hasImageOutput || outputBuffers.length === 0) {
+            throw new Error("No image data generated by Gemini");
+        }
+
+        console.log("✅ Generated", outputBuffers.length, "image buffer(s)");
+        return outputBuffers;
+
+    } catch (err) {
+        console.error("❌ Error in main function:", err);
+
+        // Better error message formatting
+        let errorMessage = err.message;
+        if (err.response && err.response.data) {
+            errorMessage = `Gemini API Error: ${JSON.stringify(err.response.data)}`;
+        } else if (err.status) {
+            errorMessage = `API Error (${err.status}): ${err.message}`;
+        }
+
+        throw new Error(`Main function failed: ${errorMessage}`);
     }
-
-    console.log("📂 Final Output Files:", outputFiles);
-    return outputFiles;
 }
