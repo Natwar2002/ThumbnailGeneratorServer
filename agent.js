@@ -84,7 +84,7 @@ export async function main(input, imageUrl) {
         }
 
         const candidate = result.candidates[0];
-        if (!candidate.content || !candidate.content.parts) {
+        if (!candidate?.content || !candidate?.content?.parts) {
             throw new Error("No content parts in Gemini response");
         }
 
@@ -92,7 +92,7 @@ export async function main(input, imageUrl) {
         const outputBuffers = [];
         let hasImageOutput = false;
 
-        for (const part of candidate.content.parts) {
+        for (const part of candidate?.content?.parts) {
             if (part.inlineData && part.inlineData.data) {
                 // Image data found
                 const imageBuffer = Buffer.from(part.inlineData.data, "base64");
