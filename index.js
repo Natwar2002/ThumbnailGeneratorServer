@@ -4,6 +4,7 @@ import rewriteQuery from './rewrite.js';
 import { main } from './agent.js';
 import multer from 'multer';
 import path from 'path';
+import jwt from "jsonwebtoken";
 import fs from 'fs';
 import { convertTo16by9, convertTo1by1, convertTo9by16 } from './helpers.js';
 import { uploadFile } from './cloudinaryConfig.js';
@@ -22,6 +23,31 @@ app.get('/ping', (req, res) => {
     res.status(200).json({
         message: 'Pong'
     })
+});
+
+const users = [
+    { username: "hitesh", password: "hitesh@chaicode" },
+    { username: "piyush", password: "piyush@chaicode" }
+];
+
+// Signin endpoint
+app.post("/signin", (req, res) => {
+    const { username, password } = req.body;
+
+    const user = users.find(
+        (u) => u.username === username && u.password === password
+    );
+
+    if (!user) {
+        return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Generate token
+    const token = jwt.sign({ username: user.username }, "my_JWT_Secret-for-this-app", {
+        expiresIn: "1h",
+    });
+
+    res.json({ success: true, token });
 });
 
 app.post('/generateThumbnail', upload.single("image"), async (req, res) => {
